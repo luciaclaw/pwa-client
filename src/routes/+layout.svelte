@@ -37,6 +37,7 @@
       <div class="nav-links">
         <a href="/chat">Chat</a>
         <a href="/schedules">Schedules</a>
+        <a href="/memories">Memory</a>
         <a href="/settings">Settings</a>
         <a href="/trust">Trust</a>
       </div>
