@@ -12,12 +12,33 @@
     setCredential,
     initCredentialHandlers,
   } from '$lib/stores/credentials.js';
+  import {
+    preferences,
+    preferencesLoaded,
+    requestPreferences,
+    setPreference,
+    initPreferencesHandlers,
+  } from '$lib/stores/preferences.js';
   import type { CredentialInfo } from '@luciaclaw/protocol';
   import { onMount } from 'svelte';
 
   const DEFAULT_WS_URL = import.meta.env.VITE_WS_URL || 'wss://73d15d007beccbbaccfba1e2ff800c5f7026e432-8080.dstack-pha-prod9.phala.network/ws';
   let serverUrl = $state(DEFAULT_WS_URL);
   let connecting = $state(false);
+
+  // Personality state
+  const TONE_PRESETS = ['friendly', 'professional', 'casual', 'concise', 'verbose'] as const;
+  let selectedTone = $state('');
+  let customInstructions = $state('');
+  let personalitySaving = $state(false);
+
+  // Sync personality fields from server preferences
+  $effect(() => {
+    if ($preferencesLoaded) {
+      selectedTone = $preferences['personality_tone'] || '';
+      customInstructions = $preferences['personality_instructions'] || '';
+    }
+  });
 
   // API key input state per service
   let apiKeyInputs: Record<string, string> = $state({});
@@ -33,13 +54,15 @@
 
   onMount(() => {
     initCredentialHandlers();
+    initPreferencesHandlers();
   });
 
-  // Fetch integrations when connected
+  // Fetch integrations and preferences when connected
   $effect(() => {
     if ($isConnected) {
       requestIntegrations();
       requestCredentials();
+      requestPreferences();
     }
   });
 
@@ -87,6 +110,14 @@
   function getServiceCredentials(service: string): CredentialInfo[] {
     return credentialsByService[service] || [];
   }
+
+  function savePersonality() {
+    personalitySaving = true;
+    setPreference('personality_tone', selectedTone);
+    setPreference('personality_instructions', customInstructions);
+    // Visual feedback — reset after short delay
+    setTimeout(() => { personalitySaving = false; }, 800);
+  }
 </script>
 
 <div class="settings">
@@ -118,6 +149,48 @@
         </button>
       {/if}
     </div>
+  </section>
+
+  <section>
+    <h3>Agent Personality</h3>
+    {#if !$isConnected}
+      <p class="placeholder-text">
+        Connect to the Agent CVM to customize your agent's personality.
+      </p>
+    {:else}
+      <div class="form-group">
+        <label>Tone</label>
+        <div class="tone-presets">
+          {#each TONE_PRESETS as tone}
+            <button
+              class="tone-btn"
+              class:active={selectedTone === tone}
+              onclick={() => { selectedTone = selectedTone === tone ? '' : tone; }}
+            >
+              {tone}
+            </button>
+          {/each}
+        </div>
+      </div>
+      <div class="form-group">
+        <label for="custom-instructions">Custom instructions</label>
+        <textarea
+          id="custom-instructions"
+          bind:value={customInstructions}
+          placeholder="e.g., Always respond in Spanish, Use bullet points, Be sarcastic..."
+          rows="3"
+        ></textarea>
+      </div>
+      <div class="actions">
+        <button
+          class="btn btn-primary"
+          onclick={savePersonality}
+          disabled={personalitySaving}
+        >
+          {personalitySaving ? 'Saved!' : 'Save personality'}
+        </button>
+      </div>
+    {/if}
   </section>
 
   <section>
@@ -449,5 +522,51 @@
   .api-key-form input {
     flex: 1;
     min-width: 0;
+  }
+
+  textarea {
+    padding: 0.5rem 0.75rem;
+    border-radius: var(--radius);
+    background: var(--color-bg);
+    border: 1px solid var(--color-border);
+    font-size: 0.875rem;
+    font-family: inherit;
+    resize: vertical;
+    width: 100%;
+    box-sizing: border-box;
+  }
+
+  textarea:focus {
+    border-color: var(--color-primary);
+    outline: none;
+  }
+
+  .tone-presets {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.4rem;
+  }
+
+  .tone-btn {
+    padding: 0.35rem 0.75rem;
+    border-radius: 9999px;
+    font-size: 0.8rem;
+    font-weight: 500;
+    background: var(--color-surface-hover);
+    border: 1px solid var(--color-border);
+    color: var(--color-text);
+    cursor: pointer;
+    transition: all 0.15s;
+    text-transform: capitalize;
+  }
+
+  .tone-btn:hover {
+    background: var(--color-border);
+  }
+
+  .tone-btn.active {
+    background: var(--color-primary);
+    border-color: var(--color-primary);
+    color: white;
   }
 </style>
