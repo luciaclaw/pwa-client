@@ -43,34 +43,44 @@ export function setCredential(
   service: string,
   label: string,
   credentialType: 'api_key' | 'token',
-  value: string
+  value: string,
+  account?: string
 ): void {
+  const payload: Record<string, unknown> = { service, label, credentialType, value };
+  if (account) payload.account = account;
+
   wsClient.send({
     id: crypto.randomUUID(),
     type: 'credentials.set',
     timestamp: Date.now(),
-    payload: { service, label, credentialType, value },
+    payload,
   });
 }
 
 /** Delete a credential */
-export function deleteCredential(service: string): void {
+export function deleteCredential(service: string, account?: string): void {
+  const payload: Record<string, unknown> = { service };
+  if (account) payload.account = account;
+
   wsClient.send({
     id: crypto.randomUUID(),
     type: 'credentials.delete',
     timestamp: Date.now(),
-    payload: { service },
+    payload,
   });
 }
 
 /** Initiate an OAuth flow for a service */
-export function initiateOAuth(service: string, scopes: string[]): void {
+export function initiateOAuth(service: string, scopes: string[], account?: string): void {
   oauthLoading.set(service);
+  const payload: Record<string, unknown> = { service, scopes };
+  if (account) payload.account = account;
+
   wsClient.send({
     id: crypto.randomUUID(),
     type: 'oauth.init',
     timestamp: Date.now(),
-    payload: { service, scopes },
+    payload,
   });
 }
 

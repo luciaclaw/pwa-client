@@ -9,13 +9,27 @@
     requestCredentials,
     initiateOAuth,
     deleteCredential,
+    setCredential,
     initCredentialHandlers,
   } from '$lib/stores/credentials.js';
+  import type { CredentialInfo } from '@luciaclaw/protocol';
   import { onMount } from 'svelte';
 
   const DEFAULT_WS_URL = import.meta.env.VITE_WS_URL || 'wss://73d15d007beccbbaccfba1e2ff800c5f7026e432-8080.dstack-pha-prod9.phala.network/ws';
   let serverUrl = $state(DEFAULT_WS_URL);
   let connecting = $state(false);
+
+  // API key input state per service
+  let apiKeyInputs: Record<string, string> = $state({});
+
+  // Group credentials by service for multi-account display
+  let credentialsByService = $derived(
+    ($credentials).reduce<Record<string, CredentialInfo[]>>((acc, cred) => {
+      if (!acc[cred.service]) acc[cred.service] = [];
+      acc[cred.service].push(cred);
+      return acc;
+    }, {})
+  );
 
   onMount(() => {
     initCredentialHandlers();
@@ -44,12 +58,34 @@
     await requestPermission();
   }
 
-  function handleOAuth(service: string, scopes: string[]) {
-    initiateOAuth(service, scopes);
+  function handleOAuth(service: string, scopes: string[], account?: string) {
+    if (account) {
+      initiateOAuth(service, scopes, account);
+    } else {
+      initiateOAuth(service, scopes);
+    }
   }
 
-  function handleDisconnect(service: string) {
-    deleteCredential(service);
+  function handleConnectAnother(service: string, scopes: string[]) {
+    const label = prompt('Account label (e.g., "personal", "work"):');
+    if (label && label.trim()) {
+      initiateOAuth(service, scopes, label.trim());
+    }
+  }
+
+  function handleDisconnect(service: string, account?: string) {
+    deleteCredential(service, account);
+  }
+
+  function handleApiKeySubmit(service: string, name: string) {
+    const value = apiKeyInputs[service];
+    if (!value?.trim()) return;
+    setCredential(service, `${name} Bot Token`, 'api_key', value.trim());
+    apiKeyInputs[service] = '';
+  }
+
+  function getServiceCredentials(service: string): CredentialInfo[] {
+    return credentialsByService[service] || [];
   }
 </script>
 
@@ -96,6 +132,7 @@
     {:else}
       <div class="integration-list">
         {#each $integrations as integration}
+          {@const serviceCreds = getServiceCredentials(integration.service)}
           <div class="integration-card" class:connected={integration.connected}>
             <div class="integration-header">
               <div class="integration-info">
@@ -103,7 +140,7 @@
                 <span class="integration-desc">{integration.description}</span>
               </div>
               <span class="integration-badge" class:connected={integration.connected}>
-                {integration.connected ? 'Connected' : 'Not connected'}
+                {integration.connected ? (serviceCreds.length > 1 ? `${serviceCreds.length} accounts` : 'Connected') : 'Not connected'}
               </span>
             </div>
             <div class="integration-capabilities">
@@ -111,22 +148,60 @@
                 <span class="capability-tag">{cap}</span>
               {/each}
             </div>
+
+            {#if serviceCreds.length > 0}
+              <div class="account-list">
+                {#each serviceCreds as cred}
+                  <div class="account-row">
+                    <span class="account-label">{cred.label}{cred.account ? ` (${cred.account})` : ''}</span>
+                    <button
+                      class="btn btn-danger btn-sm"
+                      onclick={() => handleDisconnect(cred.service, cred.account)}
+                    >
+                      Disconnect
+                    </button>
+                  </div>
+                {/each}
+              </div>
+            {/if}
+
             <div class="integration-actions">
-              {#if integration.connected}
-                <button
-                  class="btn btn-danger"
-                  onclick={() => handleDisconnect(integration.service)}
-                >
-                  Disconnect
-                </button>
-              {:else if integration.authType === 'oauth'}
-                <button
-                  class="btn btn-primary"
-                  onclick={() => handleOAuth(integration.service, integration.requiredScopes || [])}
-                  disabled={$oauthLoading === integration.service}
-                >
-                  {$oauthLoading === integration.service ? 'Connecting...' : 'Connect with OAuth'}
-                </button>
+              {#if integration.authType === 'oauth'}
+                {#if !integration.connected}
+                  <button
+                    class="btn btn-primary"
+                    onclick={() => handleOAuth(integration.service, integration.requiredScopes || [])}
+                    disabled={$oauthLoading === integration.service}
+                  >
+                    {$oauthLoading === integration.service ? 'Connecting...' : 'Connect with OAuth'}
+                  </button>
+                {:else}
+                  <button
+                    class="btn"
+                    onclick={() => handleConnectAnother(integration.service, integration.requiredScopes || [])}
+                    disabled={$oauthLoading === integration.service}
+                  >
+                    Connect another account
+                  </button>
+                {/if}
+              {:else if integration.authType === 'api_key'}
+                {#if !integration.connected}
+                  <div class="api-key-form">
+                    <input
+                      type="password"
+                      placeholder="Bot token or API key"
+                      bind:value={apiKeyInputs[integration.service]}
+                      onkeydown={(e) => { if (e.key === 'Enter') handleApiKeySubmit(integration.service, integration.name); }}
+                    />
+                    <button
+                      class="btn btn-primary"
+                      onclick={() => handleApiKeySubmit(integration.service, integration.name)}
+                      disabled={!apiKeyInputs[integration.service]?.trim()}
+                    >
+                      Connect
+                    </button>
+                  </div>
+                {/if}
               {/if}
             </div>
           </div>
@@ -187,7 +262,8 @@
     color: var(--color-text-muted);
   }
 
-  input[type="text"] {
+  input[type="text"],
+  input[type="password"] {
     padding: 0.5rem 0.75rem;
     border-radius: var(--radius);
     background: var(--color-bg);
@@ -196,7 +272,8 @@
     font-family: var(--font-mono);
   }
 
-  input[type="text"]:focus {
+  input[type="text"]:focus,
+  input[type="password"]:focus {
     border-color: var(--color-primary);
   }
 
@@ -248,6 +325,11 @@
   .btn-danger:hover:not(:disabled) {
     background: var(--color-error);
     color: white;
+  }
+
+  .btn-sm {
+    padding: 0.25rem 0.5rem;
+    font-size: 0.7rem;
   }
 
   .btn:disabled {
@@ -331,8 +413,41 @@
     font-family: var(--font-mono);
   }
 
+  .account-list {
+    display: flex;
+    flex-direction: column;
+    gap: 0.4rem;
+    margin-bottom: 0.75rem;
+    padding: 0.5rem;
+    border-radius: var(--radius);
+    background: var(--color-surface);
+  }
+
+  .account-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 0.5rem;
+  }
+
+  .account-label {
+    font-size: 0.8rem;
+    font-family: var(--font-mono);
+  }
+
   .integration-actions {
     display: flex;
     gap: 0.5rem;
+  }
+
+  .api-key-form {
+    display: flex;
+    gap: 0.5rem;
+    width: 100%;
+  }
+
+  .api-key-form input {
+    flex: 1;
+    min-width: 0;
   }
 </style>
