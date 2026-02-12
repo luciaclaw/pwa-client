@@ -11,6 +11,8 @@ export type {
   ChatResponsePayload,
   ChatStreamChunkPayload,
   ChatStreamEndPayload,
+  Attachment,
+  AttachmentMimeType,
   ToolCallPayload,
   ToolResultPayload,
   ToolConfirmRequestPayload,

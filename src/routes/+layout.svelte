@@ -1,11 +1,13 @@
 <script lang="ts">
   import '../app.css';
   import { onMount } from 'svelte';
-  import { connectionState, connect } from '$lib/stores/websocket.js';
+  import { connectionState, connect, isConnected } from '$lib/stores/websocket.js';
+  import { subscribeToPush } from '$lib/stores/notifications.js';
 
   const WS_URL = import.meta.env.VITE_WS_URL || 'wss://73d15d007beccbbaccfba1e2ff800c5f7026e432-8080.dstack-pha-prod9.phala.network/ws';
 
   let { children } = $props();
+  let pushSubscribed = false;
 
   onMount(() => {
     // Auto-connect to CVM
@@ -18,6 +20,14 @@
       });
     }
   });
+
+  // Auto-subscribe to push after E2E connection established
+  $effect(() => {
+    if ($isConnected && !pushSubscribed) {
+      pushSubscribed = true;
+      subscribeToPush().catch(() => {});
+    }
+  });
 </script>
 
 <div class="app">
@@ -26,6 +36,7 @@
       <a href="/" class="logo">Lucia</a>
       <div class="nav-links">
         <a href="/chat">Chat</a>
+        <a href="/schedules">Schedules</a>
         <a href="/settings">Settings</a>
         <a href="/trust">Trust</a>
       </div>
