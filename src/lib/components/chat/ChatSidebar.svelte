@@ -35,7 +35,7 @@
       <button class="p-1 rounded-lg text-[var(--theme-primary)] hover:bg-[var(--theme-primary-muted)] transition-colors" onclick={onnew} title="New chat">
         <MessageSquarePlus size={16} />
       </button>
-      <button class="p-1 rounded-lg text-[var(--theme-text-muted)] hover:bg-[var(--theme-surface-hover)] transition-colors lg:hidden" onclick={onclose}>
+      <button class="p-1 rounded-lg text-[var(--theme-text-muted)] hover:bg-[var(--theme-surface-hover)] transition-colors" onclick={onclose}>
         <X size={16} />
       </button>
     </div>

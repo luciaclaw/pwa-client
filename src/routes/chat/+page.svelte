@@ -37,7 +37,7 @@
   let streamingResponseId = $state<string | null>(null);
   let pendingConfirmation = $state<{ callId: string; description: string; risk: string } | null>(null);
   let modelSelectorOpen = $state(false);
-  let sidebarOpen = $state(false);
+  let sidebarOpen = $state(true);
   let pendingAttachments = $state<Attachment[]>([]);
   let waitingForResponse = $state(false);
 
@@ -263,11 +263,11 @@
   {/if}
   <div class="
     {sidebarOpen ? 'translate-x-0' : '-translate-x-full'}
-    fixed inset-y-0 left-0 z-40 lg:relative lg:z-auto lg:translate-x-0
+    fixed inset-y-0 left-0 z-40 lg:relative lg:z-auto
     transition-transform duration-200
   ">
     <ChatSidebar
-      open={true}
+      open={sidebarOpen}
       conversations={$conversations}
       activeId={$activeConversationId}
       loading={$conversationsLoading}

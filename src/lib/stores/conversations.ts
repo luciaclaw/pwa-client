@@ -28,6 +28,8 @@ export function requestConversations(): void {
     timestamp: Date.now(),
     payload: { limit: 50 },
   });
+  // Fallback: stop loading if no response within 5s
+  setTimeout(() => conversationsLoading.set(false), 5000);
 }
 
 /** Load a specific conversation's messages */
