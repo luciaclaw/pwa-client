@@ -20,7 +20,6 @@
   let pushSubscribed = false;
   let showSecurityAnimation = $state(false);
   let mobileMenuOpen = $state(false);
-  let prevConnectionState = $state('disconnected');
 
   const securitySteps = [
     { icon: Shield, label: 'Connecting to secure enclave...', detail: 'Intel TDX' },
@@ -49,9 +48,11 @@
     }
   });
 
-  // Auto-connect
+  // Connect once after onboarding; client handles all reconnection internally
+  let initialConnectDone = false;
   $effect(() => {
-    if ($onboardingCompleted && $connectionState === 'disconnected') {
+    if ($onboardingCompleted && !initialConnectDone) {
+      initialConnectDone = true;
       connect(WS_URL).catch(() => {});
     }
   });
@@ -64,12 +65,13 @@
     }
   });
 
-  // Trigger security animation on connection
+  // Trigger security animation only on first connection, not reconnects
+  let hasConnectedBefore = false;
   $effect(() => {
-    if (prevConnectionState !== 'encrypted' && $connectionState === 'encrypted') {
+    if ($connectionState === 'encrypted' && !hasConnectedBefore) {
+      hasConnectedBefore = true;
       showSecurityAnimation = true;
     }
-    prevConnectionState = $connectionState;
   });
 
   function getStatusType(state: string): 'connected' | 'connecting' | 'error' | 'disconnected' {

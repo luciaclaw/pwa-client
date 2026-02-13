@@ -43,6 +43,7 @@ export class SecureWebSocketClient {
   private url = '';
   private maxReconnectAttempts: number;
   private reconnectBaseDelay: number;
+  private connectGeneration = 0;
 
   constructor(options: SecureWSOptions = {}) {
     this.maxReconnectAttempts = options.maxReconnectAttempts ?? 10;
@@ -56,8 +57,24 @@ export class SecureWebSocketClient {
 
   /** Connect to a WebSocket URL and perform E2E handshake. */
   async connect(url: string): Promise<void> {
+    // Guard against concurrent connect calls
+    if (this.state === 'connecting' || this.state === 'handshaking') {
+      return;
+    }
+
+    // Clean up any existing connection
+    if (this.ws) {
+      const old = this.ws;
+      old.onclose = null;
+      old.onerror = null;
+      old.onmessage = null;
+      old.close();
+      this.ws = null;
+    }
+
     this.url = url;
     this.setState('connecting');
+    const connectId = ++this.connectGeneration;
 
     return new Promise((resolve, reject) => {
       try {
@@ -69,6 +86,7 @@ export class SecureWebSocketClient {
       }
 
       this.ws.onopen = async () => {
+        if (connectId !== this.connectGeneration) return;
         try {
           await this.performHandshake();
           this.reconnectAttempts = 0;
@@ -84,6 +102,8 @@ export class SecureWebSocketClient {
       };
 
       this.ws.onclose = () => {
+        // Ignore close events from stale WebSocket instances
+        if (connectId !== this.connectGeneration) return;
         if (this.state !== 'error') {
           this.setState('disconnected');
         }
@@ -92,6 +112,7 @@ export class SecureWebSocketClient {
       };
 
       this.ws.onerror = () => {
+        if (connectId !== this.connectGeneration) return;
         this.setState('error');
         reject(new Error('WebSocket connection failed'));
       };
