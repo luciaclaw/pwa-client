@@ -6,6 +6,7 @@
   import { connectionState, connect, isConnected } from '$lib/stores/websocket.js';
   import { subscribeToPush } from '$lib/stores/notifications.js';
   import { onboardingCompleted } from '$lib/stores/onboarding.js';
+  import { wsUrl } from '$lib/stores/connection.js';
   import { effectiveTheme, applyTheme } from '$lib/stores/theme.js';
   import { Shield, Cpu, KeyRound, Lock, ShieldCheck } from '@lucide/svelte';
   import NavLink from '$lib/components/NavLink.svelte';
@@ -14,7 +15,6 @@
   import SecurityVerification from '$lib/components/SecurityVerification.svelte';
   import { MessageSquare, Clock, GitBranch, Brain, Settings, ShieldCheck as ShieldCheckNav, Menu, X } from '@lucide/svelte';
 
-  const WS_URL = import.meta.env.VITE_WS_URL || 'wss://318943fa6292b8b45307ce52afb524a9f124de2b-8080.dstack-pha-prod9.phala.network/ws';
 
   let { children } = $props();
   let pushSubscribed = false;
@@ -53,7 +53,7 @@
   $effect(() => {
     if ($onboardingCompleted && !initialConnectDone) {
       initialConnectDone = true;
-      connect(WS_URL).catch(() => {});
+      connect($wsUrl).catch(() => {});
     }
   });
 

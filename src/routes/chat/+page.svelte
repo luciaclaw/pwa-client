@@ -1,7 +1,7 @@
 <script lang="ts">
   import { onMount, tick } from 'svelte';
   import { messages, addMessage, clearMessages } from '$lib/stores/chat.js';
-  import { wsClient, connectionState, connect } from '$lib/stores/websocket.js';
+  import { wsClient, connectionState } from '$lib/stores/websocket.js';
   import { availableModels, selectedModelId, selectedModel, modelsLoading, setModels, selectModel } from '$lib/stores/models.js';
   import {
     preferences, preferencesLoaded, requestPreferences, initPreferencesHandlers,
@@ -55,10 +55,7 @@
     { icon: Lock, label: 'Ready — all inference hardware-encrypted', detail: 'AES-256-GCM' },
   ];
 
-  const WS_URL = import.meta.env.VITE_WS_URL || 'wss://318943fa6292b8b45307ce52afb524a9f124de2b-8080.dstack-pha-prod9.phala.network/ws';
-
   onMount(() => {
-    connect(WS_URL).catch(() => {});
     initConversationHandlers();
     initPreferencesHandlers();
 

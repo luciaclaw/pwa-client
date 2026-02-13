@@ -1,6 +1,7 @@
 <script lang="ts">
   import { goto } from '$app/navigation';
   import { connectionState, connect, isConnected } from '$lib/stores/websocket.js';
+  import { wsUrl, setWsUrl } from '$lib/stores/connection.js';
   import {
     integrations, credentials, oauthLoading,
     requestIntegrations, requestCredentials, initiateOAuth, setCredential, initCredentialHandlers,
@@ -21,8 +22,7 @@
   import Badge from '$lib/components/Badge.svelte';
   import IntegrationCard from '$lib/components/IntegrationCard.svelte';
 
-  const DEFAULT_WS_URL = import.meta.env.VITE_WS_URL || 'wss://318943fa6292b8b45307ce52afb524a9f124de2b-8080.dstack-pha-prod9.phala.network/ws';
-  let serverUrl = $state(DEFAULT_WS_URL);
+  let serverUrl = $state($wsUrl);
   let connecting = $state(false);
   let connectError = $state('');
 
@@ -61,6 +61,7 @@
 
   async function handleConnect() {
     connecting = true; connectError = '';
+    setWsUrl(serverUrl);
     try { await connect(serverUrl); } catch (e: any) { connectError = e?.message || 'Connection failed'; }
     finally { connecting = false; }
   }

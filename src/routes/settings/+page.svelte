@@ -1,5 +1,6 @@
 <script lang="ts">
   import { connectionState, connect, disconnect, isConnected } from '$lib/stores/websocket.js';
+  import { wsUrl, setWsUrl } from '$lib/stores/connection.js';
   import { requestPermission, notificationPermission } from '$lib/stores/notifications.js';
   import {
     integrations, credentials, oauthLoading,
@@ -18,8 +19,7 @@
   import Badge from '$lib/components/Badge.svelte';
   import IntegrationCard from '$lib/components/IntegrationCard.svelte';
 
-  const DEFAULT_WS_URL = import.meta.env.VITE_WS_URL || 'wss://318943fa6292b8b45307ce52afb524a9f124de2b-8080.dstack-pha-prod9.phala.network/ws';
-  let serverUrl = $state(DEFAULT_WS_URL);
+  let serverUrl = $state($wsUrl);
   let connecting = $state(false);
 
   // Profile fields
@@ -71,6 +71,7 @@
 
   async function handleConnect() {
     connecting = true;
+    setWsUrl(serverUrl);
     try { await connect(serverUrl); } catch {} finally { connecting = false; }
   }
 
