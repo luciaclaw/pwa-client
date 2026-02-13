@@ -14,7 +14,7 @@
   import SecurityVerification from '$lib/components/SecurityVerification.svelte';
   import { MessageSquare, Clock, GitBranch, Brain, Settings, ShieldCheck as ShieldCheckNav, Menu, X } from '@lucide/svelte';
 
-  const WS_URL = import.meta.env.VITE_WS_URL || 'wss://73d15d007beccbbaccfba1e2ff800c5f7026e432-8080.dstack-pha-prod9.phala.network/ws';
+  const WS_URL = import.meta.env.VITE_WS_URL || 'wss://318943fa6292b8b45307ce52afb524a9f124de2b-8080.dstack-pha-prod9.phala.network/ws';
 
   let { children } = $props();
   let pushSubscribed = false;
