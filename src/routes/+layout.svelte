@@ -1,136 +1,150 @@
 <script lang="ts">
   import '../app.css';
   import { onMount } from 'svelte';
+  import { page } from '$app/state';
+  import { goto } from '$app/navigation';
   import { connectionState, connect, isConnected } from '$lib/stores/websocket.js';
   import { subscribeToPush } from '$lib/stores/notifications.js';
+  import { onboardingCompleted } from '$lib/stores/onboarding.js';
+  import { effectiveTheme, applyTheme } from '$lib/stores/theme.js';
+  import { Shield, Cpu, KeyRound, Lock, ShieldCheck } from '@lucide/svelte';
+  import NavLink from '$lib/components/NavLink.svelte';
+  import StatusBadge from '$lib/components/StatusBadge.svelte';
+  import ThemeToggle from '$lib/components/ThemeToggle.svelte';
+  import SecurityVerification from '$lib/components/SecurityVerification.svelte';
+  import { MessageSquare, Clock, GitBranch, Brain, Settings, ShieldCheck as ShieldCheckNav, Menu, X } from '@lucide/svelte';
 
   const WS_URL = import.meta.env.VITE_WS_URL || 'wss://73d15d007beccbbaccfba1e2ff800c5f7026e432-8080.dstack-pha-prod9.phala.network/ws';
 
   let { children } = $props();
   let pushSubscribed = false;
+  let showSecurityAnimation = $state(false);
+  let mobileMenuOpen = $state(false);
+  let prevConnectionState = $state('disconnected');
 
+  const securitySteps = [
+    { icon: Shield, label: 'Connecting to secure enclave...', detail: 'Intel TDX' },
+    { icon: Cpu, label: 'Verifying Intel TDX attestation...', detail: 'Remote attestation' },
+    { icon: KeyRound, label: 'Generating encryption keys...', detail: 'ECDH P-256' },
+    { icon: Lock, label: 'Establishing E2E encrypted channel...', detail: 'AES-256-GCM' },
+    { icon: ShieldCheck, label: 'Secure connection active', detail: 'Hardware-encrypted' },
+  ];
+
+  // Apply theme on mount
   onMount(() => {
-    // Auto-connect to CVM
-    connect(WS_URL).catch(() => {});
+    const unsub = effectiveTheme.subscribe((t) => applyTheme(t));
 
-    // Register service worker for PWA
     if ('serviceWorker' in navigator) {
-      navigator.serviceWorker.register('/service-worker.js').catch(() => {
-        // Service worker registration failed — non-critical
-      });
+      navigator.serviceWorker.register('/service-worker.js').catch(() => {});
+    }
+
+    return unsub;
+  });
+
+  // Redirect to onboarding if not completed
+  $effect(() => {
+    const onOnboard = page.url.pathname.startsWith('/onboard');
+    if (!$onboardingCompleted && !onOnboard) {
+      goto('/onboard');
     }
   });
 
-  // Auto-subscribe to push after E2E connection established
+  // Auto-connect
+  $effect(() => {
+    if ($onboardingCompleted && $connectionState === 'disconnected') {
+      connect(WS_URL).catch(() => {});
+    }
+  });
+
+  // Auto-subscribe to push
   $effect(() => {
     if ($isConnected && !pushSubscribed) {
       pushSubscribed = true;
       subscribeToPush().catch(() => {});
     }
   });
+
+  // Trigger security animation on connection
+  $effect(() => {
+    if (prevConnectionState !== 'encrypted' && $connectionState === 'encrypted') {
+      showSecurityAnimation = true;
+    }
+    prevConnectionState = $connectionState;
+  });
+
+  function getStatusType(state: string): 'connected' | 'connecting' | 'error' | 'disconnected' {
+    if (state === 'encrypted') return 'connected';
+    if (state === 'connecting' || state === 'handshaking') return 'connecting';
+    if (state === 'error') return 'error';
+    return 'disconnected';
+  }
 </script>
 
-<div class="app">
-  <header>
-    <nav>
-      <a href="/" class="logo">Lucia</a>
-      <div class="nav-links">
-        <a href="/chat">Chat</a>
-        <a href="/schedules">Schedules</a>
-        <a href="/workflows">Workflows</a>
-        <a href="/memories">Memory</a>
-        <a href="/settings">Settings</a>
-        <a href="/trust">Trust</a>
+<SecurityVerification
+  steps={securitySteps}
+  active={showSecurityAnimation}
+  onComplete={() => { showSecurityAnimation = false; }}
+/>
+
+<div class="flex flex-col h-screen bg-[var(--theme-bg)]">
+  <header class="sticky top-0 z-40 border-b border-[var(--theme-border)] bg-[var(--theme-surface)]/80 backdrop-blur-xl">
+    <nav class="flex items-center px-4 py-2.5 gap-2 max-w-[1400px] mx-auto w-full">
+      <a href="/" class="text-lg font-bold tracking-tight text-[var(--theme-primary)] mr-2 shrink-0">Lucia</a>
+
+      <!-- Desktop nav -->
+      <div class="hidden md:flex items-center gap-0.5 flex-1">
+        <NavLink href="/chat" label="Chat" icon={MessageSquare} />
+        <NavLink href="/schedules" label="Schedules" icon={Clock} />
+        <NavLink href="/workflows" label="Workflows" icon={GitBranch} />
+        <NavLink href="/memories" label="Memory" icon={Brain} />
+        <NavLink href="/settings" label="Settings" icon={Settings} />
+        <NavLink href="/trust" label="Trust" icon={ShieldCheckNav} />
       </div>
-      <div class="connection-status" class:connected={$connectionState === 'encrypted'} class:connecting={$connectionState === 'handshaking' || $connectionState === 'connecting'} class:error={$connectionState === 'error'}>
-        {#if $connectionState === 'encrypted'}
-          E2E Encrypted
-        {:else if $connectionState === 'handshaking' || $connectionState === 'connecting'}
-          Connecting...
-        {:else if $connectionState === 'error'}
-          Connection Error
-        {:else}
-          Disconnected
-        {/if}
+
+      <div class="flex items-center gap-2 ml-auto">
+        <StatusBadge status={getStatusType($connectionState)} />
+        <ThemeToggle />
+
+        <!-- Mobile hamburger -->
+        <button
+          class="md:hidden p-1.5 rounded-lg text-[var(--theme-text-muted)] hover:bg-[var(--theme-surface-hover)] transition-colors"
+          onclick={() => mobileMenuOpen = !mobileMenuOpen}
+        >
+          {#if mobileMenuOpen}
+            <X size={20} />
+          {:else}
+            <Menu size={20} />
+          {/if}
+        </button>
       </div>
     </nav>
+
+    <!-- Mobile menu -->
+    {#if mobileMenuOpen}
+      <div class="md:hidden border-t border-[var(--theme-border)] bg-[var(--theme-surface)] px-4 py-3 flex flex-col gap-1 animate-slide-up">
+        <a href="/chat" class="flex items-center gap-2 px-3 py-2 rounded-lg text-sm text-[var(--theme-text-muted)] hover:bg-[var(--theme-surface-hover)]" onclick={() => mobileMenuOpen = false}>
+          <MessageSquare size={16} /> Chat
+        </a>
+        <a href="/schedules" class="flex items-center gap-2 px-3 py-2 rounded-lg text-sm text-[var(--theme-text-muted)] hover:bg-[var(--theme-surface-hover)]" onclick={() => mobileMenuOpen = false}>
+          <Clock size={16} /> Schedules
+        </a>
+        <a href="/workflows" class="flex items-center gap-2 px-3 py-2 rounded-lg text-sm text-[var(--theme-text-muted)] hover:bg-[var(--theme-surface-hover)]" onclick={() => mobileMenuOpen = false}>
+          <GitBranch size={16} /> Workflows
+        </a>
+        <a href="/memories" class="flex items-center gap-2 px-3 py-2 rounded-lg text-sm text-[var(--theme-text-muted)] hover:bg-[var(--theme-surface-hover)]" onclick={() => mobileMenuOpen = false}>
+          <Brain size={16} /> Memory
+        </a>
+        <a href="/settings" class="flex items-center gap-2 px-3 py-2 rounded-lg text-sm text-[var(--theme-text-muted)] hover:bg-[var(--theme-surface-hover)]" onclick={() => mobileMenuOpen = false}>
+          <Settings size={16} /> Settings
+        </a>
+        <a href="/trust" class="flex items-center gap-2 px-3 py-2 rounded-lg text-sm text-[var(--theme-text-muted)] hover:bg-[var(--theme-surface-hover)]" onclick={() => mobileMenuOpen = false}>
+          <ShieldCheckNav size={16} /> Trust
+        </a>
+      </div>
+    {/if}
   </header>
 
-  <main>
+  <main class="flex-1 overflow-hidden">
     {@render children()}
   </main>
 </div>
-
-<style>
-  .app {
-    display: flex;
-    flex-direction: column;
-    height: 100vh;
-  }
-
-  header {
-    border-bottom: 1px solid var(--color-border);
-    background: var(--color-surface);
-  }
-
-  nav {
-    display: flex;
-    align-items: center;
-    padding: 0.75rem 1rem;
-    gap: 1rem;
-    max-width: 1200px;
-    margin: 0 auto;
-    width: 100%;
-  }
-
-  .logo {
-    font-size: 1.25rem;
-    font-weight: 700;
-    color: var(--color-primary);
-    letter-spacing: -0.025em;
-  }
-
-  .nav-links {
-    display: flex;
-    gap: 1rem;
-    margin-left: auto;
-  }
-
-  .nav-links a {
-    color: var(--color-text-muted);
-    font-size: 0.875rem;
-    transition: color 0.15s;
-  }
-
-  .nav-links a:hover {
-    color: var(--color-text);
-  }
-
-  .connection-status {
-    font-size: 0.75rem;
-    padding: 0.25rem 0.5rem;
-    border-radius: var(--radius);
-    background: var(--color-surface-hover);
-    color: var(--color-text-muted);
-  }
-
-  .connection-status.connected {
-    background: rgba(34, 197, 94, 0.15);
-    color: var(--color-success);
-  }
-
-  .connection-status.connecting {
-    background: rgba(245, 158, 11, 0.15);
-    color: var(--color-warning);
-  }
-
-  .connection-status.error {
-    background: rgba(239, 68, 68, 0.15);
-    color: var(--color-error);
-  }
-
-  main {
-    flex: 1;
-    overflow: hidden;
-  }
-</style>

@@ -9,6 +9,11 @@
     deleteMemory,
     initMemoryHandlers,
   } from '$lib/stores/memories.js';
+  import { Search, Brain, Trash2 } from '@lucide/svelte';
+  import PageHeader from '$lib/components/PageHeader.svelte';
+  import Badge from '$lib/components/Badge.svelte';
+  import EmptyState from '$lib/components/EmptyState.svelte';
+  import Button from '$lib/components/Button.svelte';
 
   let searchQuery = $state('');
   let selectedCategory = $state('');
@@ -60,10 +65,7 @@
       confirmDeleteId = null;
     } else {
       confirmDeleteId = id;
-      // Auto-reset confirmation after 3 seconds
-      setTimeout(() => {
-        confirmDeleteId = null;
-      }, 3000);
+      setTimeout(() => { confirmDeleteId = null; }, 3000);
     }
   }
 
@@ -75,44 +77,41 @@
     });
   }
 
-  function categoryColor(category: string): string {
-    const colors: Record<string, string> = {
-      fact: 'var(--color-primary)',
-      preference: 'var(--color-success)',
-      event: 'var(--color-warning)',
-      decision: '#a855f7',
-      relationship: '#ec4899',
-      general: 'var(--color-text-muted)',
-    };
-    return colors[category] || colors.general;
-  }
+  const categoryVariant: Record<string, 'primary' | 'success' | 'warning' | 'error' | 'info' | 'neutral'> = {
+    fact: 'primary',
+    preference: 'success',
+    event: 'warning',
+    decision: 'info',
+    relationship: 'error',
+    general: 'neutral',
+  };
 </script>
 
-<div class="memories-page">
-  <div class="header">
-    <div class="header-left">
-      <h2>Memory</h2>
+<div class="max-w-2xl mx-auto px-4 md:px-6 py-8">
+  <PageHeader title="Memory">
+    {#snippet badge()}
       {#if $memoryTotal > 0}
-        <span class="count-badge">{$memoryTotal} stored</span>
+        <Badge variant="primary">{$memoryTotal} stored</Badge>
       {/if}
-    </div>
-  </div>
+    {/snippet}
+  </PageHeader>
 
   {#if !$isConnected}
-    <p class="placeholder-text">
-      Connect to the Agent CVM to view stored memories.
-    </p>
+    <EmptyState icon={Brain} title="Connect to the Agent CVM to view stored memories." />
   {:else}
-    <div class="controls">
-      <input
-        type="text"
-        class="search-input"
-        placeholder="Search memories..."
-        bind:value={searchQuery}
-        oninput={handleSearchInput}
-      />
+    <div class="flex gap-2 mb-5">
+      <div class="relative flex-1">
+        <Search size={14} class="absolute left-3 top-1/2 -translate-y-1/2 text-[var(--theme-text-muted)]" />
+        <input
+          type="text"
+          class="w-full pl-9 pr-3 py-2 text-sm rounded-lg bg-[var(--theme-surface)] border border-[var(--theme-border)] focus:border-[var(--theme-primary)] transition-colors placeholder:text-[var(--theme-text-muted)]"
+          placeholder="Search memories..."
+          bind:value={searchQuery}
+          oninput={handleSearchInput}
+        />
+      </div>
       <select
-        class="category-select"
+        class="px-3 py-2 text-sm rounded-lg bg-[var(--theme-surface)] border border-[var(--theme-border)] focus:border-[var(--theme-primary)] transition-colors cursor-pointer"
         bind:value={selectedCategory}
         onchange={handleCategoryChange}
       >
@@ -123,41 +122,35 @@
     </div>
 
     {#if $memories.length === 0}
-      <div class="empty-state">
-        {#if searchQuery.trim()}
-          <p>No memories found for "{searchQuery}".</p>
-        {:else}
-          <p>No memories stored yet.</p>
-          <p class="hint">Lucia will automatically remember important facts, preferences, and decisions from your conversations.</p>
-        {/if}
-      </div>
+      <EmptyState
+        icon={Brain}
+        title={searchQuery.trim() ? `No memories found for "${searchQuery}"` : 'No memories stored yet.'}
+        description={searchQuery.trim() ? undefined : 'Lucia will automatically remember important facts, preferences, and decisions from your conversations.'}
+      />
     {:else}
-      <div class="memory-list">
+      <div class="flex flex-col gap-3">
         {#each $memories as memory}
-          <div class="memory-card">
-            <div class="card-header">
-              <span
-                class="category-badge"
-                style="color: {categoryColor(memory.category)}; background: color-mix(in srgb, {categoryColor(memory.category)} 12%, transparent)"
-              >
-                {memory.category}
-              </span>
-              <span class="card-date">{formatDate(memory.createdAt)}</span>
+          <div class="p-4 rounded-xl border border-[var(--theme-border)] bg-[var(--theme-surface)] hover:border-[var(--theme-border-strong)] transition-colors">
+            <div class="flex items-center justify-between mb-2">
+              <Badge variant={categoryVariant[memory.category] || 'neutral'}>{memory.category}</Badge>
+              <span class="text-[0.65rem] text-[var(--theme-text-muted)]">{formatDate(memory.createdAt)}</span>
             </div>
-
-            <p class="card-content">{memory.content}</p>
-
-            <div class="card-footer">
-              <span class="access-count">
+            <p class="text-sm leading-relaxed text-[var(--theme-text)]">{memory.content}</p>
+            <div class="flex items-center justify-between mt-3">
+              <span class="text-[0.65rem] text-[var(--theme-text-muted)]">
                 {memory.accessCount} {memory.accessCount === 1 ? 'recall' : 'recalls'}
               </span>
-              <button
-                class="btn btn-sm"
-                class:btn-danger={confirmDeleteId === memory.id}
+              <Button
+                variant={confirmDeleteId === memory.id ? 'danger' : 'ghost'}
+                size="sm"
                 onclick={() => handleDelete(memory.id)}
               >
-                {confirmDeleteId === memory.id ? 'Confirm' : 'Delete'}
-              </button>
+                {#if confirmDeleteId === memory.id}
+                  Confirm
+                {:else}
+                  <Trash2 size={12} />
+                {/if}
+              </Button>
             </div>
           </div>
         {/each}
@@ -165,177 +158,3 @@
     {/if}
   {/if}
 </div>
-
-<style>
-  .memories-page {
-    max-width: 700px;
-    margin: 0 auto;
-    padding: 2rem 1.5rem;
-  }
-
-  .header {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    margin-bottom: 1.5rem;
-  }
-
-  .header-left {
-    display: flex;
-    align-items: center;
-    gap: 0.75rem;
-  }
-
-  h2 {
-    font-size: 1.5rem;
-    margin: 0;
-  }
-
-  .count-badge {
-    font-size: 0.7rem;
-    font-weight: 600;
-    padding: 0.2rem 0.5rem;
-    border-radius: 9999px;
-    background: color-mix(in srgb, var(--color-primary) 15%, transparent);
-    color: var(--color-primary);
-  }
-
-  .controls {
-    display: flex;
-    gap: 0.5rem;
-    margin-bottom: 1.5rem;
-  }
-
-  .search-input {
-    flex: 1;
-    padding: 0.5rem 0.75rem;
-    border-radius: var(--radius);
-    background: var(--color-surface);
-    border: 1px solid var(--color-border);
-    font-size: 0.875rem;
-    color: var(--color-text);
-  }
-
-  .search-input:focus {
-    border-color: var(--color-primary);
-    outline: none;
-  }
-
-  .category-select {
-    padding: 0.5rem 0.75rem;
-    border-radius: var(--radius);
-    background: var(--color-surface);
-    border: 1px solid var(--color-border);
-    font-size: 0.875rem;
-    color: var(--color-text);
-    cursor: pointer;
-  }
-
-  .category-select:focus {
-    border-color: var(--color-primary);
-    outline: none;
-  }
-
-  .placeholder-text {
-    font-size: 0.875rem;
-    color: var(--color-text-muted);
-    text-align: center;
-    padding: 3rem 0;
-  }
-
-  .empty-state {
-    text-align: center;
-    padding: 3rem 0;
-    color: var(--color-text-muted);
-  }
-
-  .empty-state p {
-    margin: 0.25rem 0;
-  }
-
-  .hint {
-    font-size: 0.8rem;
-  }
-
-  .memory-list {
-    display: flex;
-    flex-direction: column;
-    gap: 0.75rem;
-  }
-
-  .memory-card {
-    padding: 1rem;
-    border-radius: var(--radius);
-    background: var(--color-surface);
-    border: 1px solid var(--color-border);
-  }
-
-  .card-header {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    margin-bottom: 0.5rem;
-  }
-
-  .category-badge {
-    font-size: 0.7rem;
-    font-weight: 600;
-    padding: 0.15rem 0.5rem;
-    border-radius: 9999px;
-    text-transform: capitalize;
-  }
-
-  .card-date {
-    font-size: 0.75rem;
-    color: var(--color-text-muted);
-  }
-
-  .card-content {
-    font-size: 0.875rem;
-    line-height: 1.5;
-    margin: 0;
-    color: var(--color-text);
-  }
-
-  .card-footer {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    margin-top: 0.75rem;
-  }
-
-  .access-count {
-    font-size: 0.7rem;
-    color: var(--color-text-muted);
-  }
-
-  .btn {
-    padding: 0.5rem 1rem;
-    border-radius: var(--radius);
-    font-size: 0.8rem;
-    font-weight: 600;
-    background: var(--color-surface-hover);
-    transition: background 0.15s;
-    cursor: pointer;
-    border: none;
-    color: var(--color-text);
-  }
-
-  .btn:hover {
-    background: var(--color-border);
-  }
-
-  .btn-sm {
-    padding: 0.25rem 0.5rem;
-    font-size: 0.7rem;
-  }
-
-  .btn-danger {
-    background: var(--color-error);
-    color: white;
-  }
-
-  .btn-danger:hover {
-    background: color-mix(in srgb, var(--color-error) 85%, black);
-  }
-</style>
