@@ -84,8 +84,13 @@ export function initiateOAuth(service: string, scopes: string[], account?: strin
   });
 }
 
+let credentialHandlersInitialized = false;
+
 /** Set up message handlers for credential/integration responses */
 export function initCredentialHandlers(): void {
+  if (credentialHandlersInitialized) return;
+  credentialHandlersInitialized = true;
+
   wsClient.on('credentials.response', (msg) => {
     const payload = msg.payload as { credentials: CredentialInfo[] };
     credentials.set(payload.credentials);

@@ -60,8 +60,13 @@ export function deleteConversation(conversationId: string): void {
   });
 }
 
+let conversationHandlersInitialized = false;
+
 /** Set up message handlers for conversation responses */
 export function initConversationHandlers(): void {
+  if (conversationHandlersInitialized) return;
+  conversationHandlersInitialized = true;
+
   wsClient.on('conversations.response', (msg) => {
     const payload = msg.payload as {
       conversations?: ConversationSummary[];

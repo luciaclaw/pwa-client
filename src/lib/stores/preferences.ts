@@ -31,8 +31,13 @@ export function setPreference(key: string, value: string): void {
   });
 }
 
+let preferencesHandlersInitialized = false;
+
 /** Set up message handlers for preferences responses */
 export function initPreferencesHandlers(): void {
+  if (preferencesHandlersInitialized) return;
+  preferencesHandlersInitialized = true;
+
   wsClient.on('preferences.response', (msg) => {
     const payload = msg.payload as { preferences: Record<string, string> };
     preferences.set(payload.preferences);

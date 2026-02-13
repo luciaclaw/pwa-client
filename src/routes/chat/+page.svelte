@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { onMount, tick } from 'svelte';
+  import { onMount, onDestroy, tick } from 'svelte';
   import { messages, addMessage, clearMessages } from '$lib/stores/chat.js';
   import { wsClient, connectionState } from '$lib/stores/websocket.js';
   import { availableModels, selectedModelId, selectedModel, modelsLoading, setModels, selectModel } from '$lib/stores/models.js';
@@ -55,57 +55,67 @@
     { icon: Lock, label: 'Ready — all inference hardware-encrypted', detail: 'AES-256-GCM' },
   ];
 
+  /** Unsubscribe functions returned by wsClient.on() — cleaned up on destroy */
+  let unsubscribers: Array<() => void> = [];
+
   onMount(() => {
     initConversationHandlers();
     initPreferencesHandlers();
 
-    wsClient.on('chat.response', (msg: MessageEnvelope) => {
-      const payload = msg.payload as ChatResponsePayload;
-      addMessage({
-        messageId: msg.id,
-        role: 'assistant',
-        content: payload.content,
-        toolCalls: payload.toolCalls,
-        timestamp: msg.timestamp,
-      });
-      waitingForResponse = false;
-    });
+    unsubscribers.push(
+      wsClient.on('chat.response', (msg: MessageEnvelope) => {
+        const payload = msg.payload as ChatResponsePayload;
+        addMessage({
+          messageId: msg.id,
+          role: 'assistant',
+          content: payload.content,
+          toolCalls: payload.toolCalls,
+          timestamp: msg.timestamp,
+        });
+        waitingForResponse = false;
+      }),
 
-    wsClient.on('chat.stream.chunk', (msg: MessageEnvelope) => {
-      const payload = msg.payload as ChatStreamChunkPayload;
-      streamingResponseId = payload.responseId;
-      streamingContent += payload.delta;
-      waitingForResponse = false;
-    });
+      wsClient.on('chat.stream.chunk', (msg: MessageEnvelope) => {
+        const payload = msg.payload as ChatStreamChunkPayload;
+        streamingResponseId = payload.responseId;
+        streamingContent += payload.delta;
+        waitingForResponse = false;
+      }),
 
-    wsClient.on('chat.stream.end', (msg: MessageEnvelope) => {
-      const payload = msg.payload as ChatStreamEndPayload;
-      addMessage({
-        messageId: payload.responseId,
-        role: 'assistant',
-        content: payload.content,
-        toolCalls: payload.toolCalls,
-        timestamp: msg.timestamp,
-      });
-      streamingContent = '';
-      streamingResponseId = null;
-      waitingForResponse = false;
-    });
+      wsClient.on('chat.stream.end', (msg: MessageEnvelope) => {
+        const payload = msg.payload as ChatStreamEndPayload;
+        addMessage({
+          messageId: payload.responseId,
+          role: 'assistant',
+          content: payload.content,
+          toolCalls: payload.toolCalls,
+          timestamp: msg.timestamp,
+        });
+        streamingContent = '';
+        streamingResponseId = null;
+        waitingForResponse = false;
+      }),
 
-    wsClient.on('models.response', (msg: MessageEnvelope) => {
-      const payload = msg.payload as ModelsResponsePayload;
-      setModels(payload.models, payload.currentModel);
-      modelsLoading.set(false);
-    });
+      wsClient.on('models.response', (msg: MessageEnvelope) => {
+        const payload = msg.payload as ModelsResponsePayload;
+        setModels(payload.models, payload.currentModel);
+        modelsLoading.set(false);
+      }),
 
-    wsClient.on('tool.confirm.request', (msg: MessageEnvelope) => {
-      const payload = msg.payload as ToolConfirmRequestPayload;
-      pendingConfirmation = {
-        callId: payload.toolCall.callId,
-        description: payload.description,
-        risk: payload.risk,
-      };
-    });
+      wsClient.on('tool.confirm.request', (msg: MessageEnvelope) => {
+        const payload = msg.payload as ToolConfirmRequestPayload;
+        pendingConfirmation = {
+          callId: payload.toolCall.callId,
+          description: payload.description,
+          risk: payload.risk,
+        };
+      }),
+    );
+  });
+
+  onDestroy(() => {
+    for (const unsub of unsubscribers) unsub();
+    unsubscribers = [];
   });
 
   $effect(() => {
