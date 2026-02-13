@@ -11,7 +11,7 @@
   } from '$lib/stores/preferences.js';
   import type { CredentialInfo } from '@luciaclaw/protocol';
   import { onMount } from 'svelte';
-  import { Bell, Wifi, WifiOff, User, Upload, X } from '@lucide/svelte';
+  import { Bell, Wifi, WifiOff, User, Upload, X, Server } from '@lucide/svelte';
   import Section from '$lib/components/Section.svelte';
   import Button from '$lib/components/Button.svelte';
   import Input from '$lib/components/Input.svelte';
@@ -52,6 +52,87 @@
       agentAvatar = $preferences['agent_avatar'] || '';
     }
   });
+
+  // CVM Configuration fields
+  let llmApiKey = $state('');
+  let llmBackendUrl = $state('');
+  let llmModelName = $state('');
+  let llmSaving = $state(false);
+
+  let braveSearchKey = $state('');
+  let braveSaving = $state(false);
+
+  let googleClientId = $state('');
+  let googleClientSecret = $state('');
+  let googleOAuthSaving = $state(false);
+
+  let slackClientId = $state('');
+  let slackClientSecret = $state('');
+  let slackOAuthSaving = $state(false);
+
+  let githubClientId = $state('');
+  let githubClientSecret = $state('');
+  let githubOAuthSaving = $state(false);
+
+  /** Set of config service names that have been stored in the vault */
+  let configCredentials = $derived(
+    new Set(($credentials).filter(c =>
+      ['llm_backend', 'brave_search', 'google_oauth_config', 'slack_oauth_config', 'github_oauth_config'].includes(c.service)
+    ).map(c => c.service))
+  );
+
+  function saveLlmConfig() {
+    if (!llmApiKey.trim()) return;
+    llmSaving = true;
+    const value = JSON.stringify({
+      apiKey: llmApiKey.trim(),
+      ...(llmBackendUrl.trim() ? { backendUrl: llmBackendUrl.trim() } : {}),
+      ...(llmModelName.trim() ? { modelName: llmModelName.trim() } : {}),
+    });
+    setCredential('llm_backend', 'LLM Backend', 'api_key', value);
+    llmApiKey = '';
+    llmBackendUrl = '';
+    llmModelName = '';
+    setTimeout(() => { llmSaving = false; }, 800);
+  }
+
+  function saveBraveConfig() {
+    if (!braveSearchKey.trim()) return;
+    braveSaving = true;
+    setCredential('brave_search', 'Brave Search API', 'api_key', braveSearchKey.trim());
+    braveSearchKey = '';
+    setTimeout(() => { braveSaving = false; }, 800);
+  }
+
+  function saveGoogleOAuthConfig() {
+    if (!googleClientId.trim() || !googleClientSecret.trim()) return;
+    googleOAuthSaving = true;
+    const value = JSON.stringify({ clientId: googleClientId.trim(), clientSecret: googleClientSecret.trim() });
+    setCredential('google_oauth_config', 'Google OAuth Config', 'api_key', value);
+    googleClientId = '';
+    googleClientSecret = '';
+    setTimeout(() => { googleOAuthSaving = false; }, 800);
+  }
+
+  function saveSlackOAuthConfig() {
+    if (!slackClientId.trim() || !slackClientSecret.trim()) return;
+    slackOAuthSaving = true;
+    const value = JSON.stringify({ clientId: slackClientId.trim(), clientSecret: slackClientSecret.trim() });
+    setCredential('slack_oauth_config', 'Slack OAuth Config', 'api_key', value);
+    slackClientId = '';
+    slackClientSecret = '';
+    setTimeout(() => { slackOAuthSaving = false; }, 800);
+  }
+
+  function saveGithubOAuthConfig() {
+    if (!githubClientId.trim() || !githubClientSecret.trim()) return;
+    githubOAuthSaving = true;
+    const value = JSON.stringify({ clientId: githubClientId.trim(), clientSecret: githubClientSecret.trim() });
+    setCredential('github_oauth_config', 'GitHub OAuth Config', 'api_key', value);
+    githubClientId = '';
+    githubClientSecret = '';
+    setTimeout(() => { githubOAuthSaving = false; }, 800);
+  }
 
   let apiKeyInputs: Record<string, string> = $state({});
 
@@ -155,6 +236,107 @@
         {/if}
       </div>
     </div>
+  </Section>
+
+  <Section title="CVM Configuration">
+    {#if !$isConnected}
+      <p class="text-sm text-[var(--theme-text-muted)]">Connect to the Agent CVM to configure infrastructure credentials.</p>
+    {:else}
+      <p class="text-xs text-[var(--theme-text-muted)] mb-4">
+        Configure API keys and OAuth credentials for your CVM. Values are stored encrypted in the vault and override environment variables.
+      </p>
+      <div class="space-y-5">
+
+        <!-- LLM Backend -->
+        <div class="space-y-2">
+          <div class="flex items-center gap-2">
+            <span class="text-xs font-semibold uppercase tracking-wider text-[var(--theme-text)]">LLM Backend</span>
+            {#if configCredentials.has('llm_backend')}
+              <Badge variant="success">Configured</Badge>
+            {/if}
+          </div>
+          <p class="text-[0.7rem] text-[var(--theme-text-muted)]">API key for your LLM inference provider. Optionally override the backend URL and model.</p>
+          <Input label="API Key" type="password" bind:value={llmApiKey} placeholder="sk-..." mono />
+          <Input label="Backend URL (optional)" bind:value={llmBackendUrl} placeholder="https://api.redpill.ai/v1" mono />
+          <Input label="Model name (optional)" bind:value={llmModelName} placeholder="deepseek/deepseek-chat-v3-0324" mono />
+          <Button variant="primary" size="sm" loading={llmSaving} onclick={saveLlmConfig}>
+            {llmSaving ? 'Saved!' : 'Save LLM config'}
+          </Button>
+        </div>
+
+        <hr class="border-[var(--theme-border)]" />
+
+        <!-- Brave Search -->
+        <div class="space-y-2">
+          <div class="flex items-center gap-2">
+            <span class="text-xs font-semibold uppercase tracking-wider text-[var(--theme-text)]">Brave Search</span>
+            {#if configCredentials.has('brave_search')}
+              <Badge variant="success">Configured</Badge>
+            {/if}
+          </div>
+          <p class="text-[0.7rem] text-[var(--theme-text-muted)]">API key for Brave Search. Required for the web.search tool.</p>
+          <Input label="API Key" type="password" bind:value={braveSearchKey} placeholder="BSA..." mono />
+          <Button variant="primary" size="sm" loading={braveSaving} onclick={saveBraveConfig}>
+            {braveSaving ? 'Saved!' : 'Save Brave key'}
+          </Button>
+        </div>
+
+        <hr class="border-[var(--theme-border)]" />
+
+        <!-- Google OAuth -->
+        <div class="space-y-2">
+          <div class="flex items-center gap-2">
+            <span class="text-xs font-semibold uppercase tracking-wider text-[var(--theme-text)]">Google OAuth</span>
+            {#if configCredentials.has('google_oauth_config')}
+              <Badge variant="success">Configured</Badge>
+            {/if}
+          </div>
+          <p class="text-[0.7rem] text-[var(--theme-text-muted)]">Client credentials for Google OAuth (Gmail, Calendar). Create at console.cloud.google.com.</p>
+          <Input label="Client ID" bind:value={googleClientId} placeholder="123456789.apps.googleusercontent.com" mono />
+          <Input label="Client Secret" type="password" bind:value={googleClientSecret} placeholder="GOCSPX-..." mono />
+          <Button variant="primary" size="sm" loading={googleOAuthSaving} onclick={saveGoogleOAuthConfig}>
+            {googleOAuthSaving ? 'Saved!' : 'Save Google OAuth'}
+          </Button>
+        </div>
+
+        <hr class="border-[var(--theme-border)]" />
+
+        <!-- Slack OAuth -->
+        <div class="space-y-2">
+          <div class="flex items-center gap-2">
+            <span class="text-xs font-semibold uppercase tracking-wider text-[var(--theme-text)]">Slack OAuth</span>
+            {#if configCredentials.has('slack_oauth_config')}
+              <Badge variant="success">Configured</Badge>
+            {/if}
+          </div>
+          <p class="text-[0.7rem] text-[var(--theme-text-muted)]">Client credentials for Slack integration. Create at api.slack.com/apps.</p>
+          <Input label="Client ID" bind:value={slackClientId} placeholder="Slack Client ID" mono />
+          <Input label="Client Secret" type="password" bind:value={slackClientSecret} placeholder="Slack Client Secret" mono />
+          <Button variant="primary" size="sm" loading={slackOAuthSaving} onclick={saveSlackOAuthConfig}>
+            {slackOAuthSaving ? 'Saved!' : 'Save Slack OAuth'}
+          </Button>
+        </div>
+
+        <hr class="border-[var(--theme-border)]" />
+
+        <!-- GitHub OAuth -->
+        <div class="space-y-2">
+          <div class="flex items-center gap-2">
+            <span class="text-xs font-semibold uppercase tracking-wider text-[var(--theme-text)]">GitHub OAuth</span>
+            {#if configCredentials.has('github_oauth_config')}
+              <Badge variant="success">Configured</Badge>
+            {/if}
+          </div>
+          <p class="text-[0.7rem] text-[var(--theme-text-muted)]">Client credentials for GitHub integration. Create at github.com/settings/developers.</p>
+          <Input label="Client ID" bind:value={githubClientId} placeholder="Iv1.abc123..." mono />
+          <Input label="Client Secret" type="password" bind:value={githubClientSecret} placeholder="GitHub Client Secret" mono />
+          <Button variant="primary" size="sm" loading={githubOAuthSaving} onclick={saveGithubOAuthConfig}>
+            {githubOAuthSaving ? 'Saved!' : 'Save GitHub OAuth'}
+          </Button>
+        </div>
+
+      </div>
+    {/if}
   </Section>
 
   <Section title="Profile">
