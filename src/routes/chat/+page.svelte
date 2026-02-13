@@ -4,6 +4,9 @@
   import { wsClient, connectionState, connect } from '$lib/stores/websocket.js';
   import { availableModels, selectedModelId, selectedModel, modelsLoading, setModels, selectModel } from '$lib/stores/models.js';
   import {
+    preferences, preferencesLoaded, requestPreferences, initPreferencesHandlers,
+  } from '$lib/stores/preferences.js';
+  import {
     conversations,
     activeConversationId,
     conversationsLoading,
@@ -36,6 +39,11 @@
   let modelSelectorOpen = $state(false);
   let sidebarOpen = $state(false);
   let pendingAttachments = $state<Attachment[]>([]);
+  let waitingForResponse = $state(false);
+
+  // Agent identity from preferences
+  let agentName = $derived($preferencesLoaded ? ($preferences['agent_name'] || 'Lucia') : 'Lucia');
+  let agentAvatar = $derived($preferencesLoaded ? ($preferences['agent_avatar'] || '') : '');
 
   // Security animation for model selection
   let showModelSecurity = $state(false);
@@ -52,6 +60,7 @@
   onMount(() => {
     connect(WS_URL).catch(() => {});
     initConversationHandlers();
+    initPreferencesHandlers();
 
     wsClient.on('chat.response', (msg: MessageEnvelope) => {
       const payload = msg.payload as ChatResponsePayload;
@@ -62,12 +71,14 @@
         toolCalls: payload.toolCalls,
         timestamp: msg.timestamp,
       });
+      waitingForResponse = false;
     });
 
     wsClient.on('chat.stream.chunk', (msg: MessageEnvelope) => {
       const payload = msg.payload as ChatStreamChunkPayload;
       streamingResponseId = payload.responseId;
       streamingContent += payload.delta;
+      waitingForResponse = false;
     });
 
     wsClient.on('chat.stream.end', (msg: MessageEnvelope) => {
@@ -81,6 +92,7 @@
       });
       streamingContent = '';
       streamingResponseId = null;
+      waitingForResponse = false;
     });
 
     wsClient.on('models.response', (msg: MessageEnvelope) => {
@@ -103,6 +115,7 @@
     if ($connectionState === 'encrypted') {
       requestModels();
       requestConversations();
+      requestPreferences();
     }
   });
 
@@ -139,6 +152,8 @@
       attachments,
       timestamp: Date.now(),
     });
+
+    waitingForResponse = true;
 
     await wsClient.send({
       id: msgId,
@@ -280,6 +295,9 @@
     <MessageList
       messages={$messages}
       {streamingContent}
+      isWaiting={waitingForResponse}
+      {agentName}
+      {agentAvatar}
       bind:container={messagesContainer}
     />
 

@@ -4,9 +4,11 @@
   interface Props {
     message: ChatMessage;
     streaming?: boolean;
+    agentName?: string;
+    agentAvatar?: string;
   }
 
-  let { message, streaming = false }: Props = $props();
+  let { message, streaming = false, agentName = 'Lucia', agentAvatar = '' }: Props = $props();
 
   function isImage(mimeType: string): boolean {
     return mimeType.startsWith('image/');
@@ -24,14 +26,18 @@
 </script>
 
 <div class="flex {message.role === 'user' ? 'justify-end' : 'justify-start'}">
-  <div
-    class="max-w-[80%] rounded-2xl px-4 py-3 text-sm leading-relaxed
-      {message.role === 'user'
-        ? 'bg-[var(--theme-primary)] text-white rounded-br-md'
-        : 'bg-[var(--theme-surface)] border border-[var(--theme-border)] rounded-bl-md text-[var(--theme-text)]'}"
-  >
+  <div class="flex items-start gap-2 {message.role === 'user' ? 'flex-row-reverse' : ''}">
+    {#if message.role === 'assistant' && agentAvatar}
+      <img src={agentAvatar} alt={agentName} class="w-6 h-6 rounded-full object-cover mt-1 shrink-0" />
+    {/if}
+    <div
+      class="max-w-[80%] rounded-2xl px-4 py-3 text-sm leading-relaxed
+        {message.role === 'user'
+          ? 'bg-[var(--theme-primary)] text-white rounded-br-md'
+          : 'bg-[var(--theme-surface)] border border-[var(--theme-border)] rounded-bl-md text-[var(--theme-text)]'}"
+    >
     <div class="text-[0.6rem] font-semibold uppercase tracking-wider opacity-60 mb-1">
-      {message.role === 'user' ? 'You' : 'Lucia'}
+      {message.role === 'user' ? 'You' : agentName}
     </div>
 
     {#if message.attachments && message.attachments.length > 0}
@@ -51,6 +57,7 @@
 
     <div class="whitespace-pre-wrap break-words">
       {message.content}{#if streaming}<span class="inline-block w-0.5 h-4 bg-current ml-0.5 animate-[blink_0.7s_infinite]"></span>{/if}
+    </div>
     </div>
   </div>
 </div>

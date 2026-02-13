@@ -31,10 +31,20 @@
   let customInstructions = $state('');
   let apiKeyInputs: Record<string, string> = $state({});
 
+  // Profile fields
+  let userFullName = $state('');
+  let userPreferredName = $state('');
+  let userTimezone = $state(Intl.DateTimeFormat().resolvedOptions().timeZone);
+
+  const timezones = Intl.supportedValuesOf('timeZone');
+
   $effect(() => {
     if ($preferencesLoaded) {
       if ($preferences['personality_tone']) selectedTone = $preferences['personality_tone'];
       if ($preferences['personality_instructions']) customInstructions = $preferences['personality_instructions'];
+      if ($preferences['user_full_name']) userFullName = $preferences['user_full_name'];
+      if ($preferences['user_preferred_name']) userPreferredName = $preferences['user_preferred_name'];
+      if ($preferences['user_timezone']) userTimezone = $preferences['user_timezone'];
     }
   });
 
@@ -56,6 +66,9 @@
   }
 
   function handleSavePersonality() {
+    if (userFullName.trim()) setPreference('user_full_name', userFullName.trim());
+    if (userPreferredName.trim()) setPreference('user_preferred_name', userPreferredName.trim());
+    setPreference('user_timezone', userTimezone);
     setPreference('personality_tone', selectedTone);
     if (customInstructions.trim()) setPreference('personality_instructions', customInstructions.trim());
     nextStep();
@@ -73,7 +86,7 @@
   function handleFinish() { completeOnboarding(); goto('/chat'); }
 
   const STEP_LABELS: Record<string, string> = {
-    welcome: 'Welcome', connect: 'Connect', personality: 'Personality', integrations: 'Integrations', complete: 'Ready',
+    welcome: 'Welcome', connect: 'Connect', personality: 'Profile & Personality', integrations: 'Integrations', complete: 'Ready',
   };
 </script>
 
@@ -138,21 +151,36 @@
         </div>
       </div>
 
-    <!-- Step 3: Personality -->
+    <!-- Step 3: Profile & Personality -->
     {:else if $currentStep === 'personality'}
       <div>
-        <h2 class="text-xl font-bold mb-1">Customize Your Agent</h2>
-        <p class="text-sm text-[var(--theme-text-muted)] mb-5">Choose how Lucia communicates with you. You can change this anytime in Settings.</p>
+        <h2 class="text-xl font-bold mb-1">Profile & Personality</h2>
+        <p class="text-sm text-[var(--theme-text-muted)] mb-5">Tell Lucia about yourself and choose how it communicates. You can change this anytime in Settings.</p>
         <div class="space-y-4">
+          <Input label="Your name" bind:value={userFullName} placeholder="Full name" />
+          <Input label="Preferred name" bind:value={userPreferredName} placeholder="What should the agent call you?" />
+          <div class="flex flex-col gap-1">
+            <label class="text-xs font-semibold uppercase tracking-wider text-[var(--theme-text-muted)]" for="onboard-tz-select">Timezone</label>
+            <select
+              id="onboard-tz-select"
+              bind:value={userTimezone}
+              class="w-full px-3 py-2 text-sm rounded-lg border border-[var(--theme-border)] bg-[var(--theme-surface)] text-[var(--theme-text)] focus:outline-none focus:ring-2 focus:ring-[var(--theme-primary)]"
+            >
+              {#each timezones as tz}
+                <option value={tz}>{tz.replace(/_/g, ' ')}</option>
+              {/each}
+            </select>
+          </div>
+          <hr class="border-[var(--theme-border)]" />
           <div class="flex flex-col gap-1">
             <span class="text-xs font-semibold uppercase tracking-wider text-[var(--theme-text-muted)]">Communication tone</span>
             <div class="flex flex-wrap gap-1.5">
               {#each TONE_PRESETS as tone}
                 <button
-                  class="px-3 py-1.5 text-xs font-medium rounded-full border capitalize transition-all
+                  class="px-3 py-1.5 text-xs rounded-full border capitalize transition-all
                     {selectedTone === tone
-                      ? 'bg-[var(--theme-primary)] border-[var(--theme-primary)] text-white'
-                      : 'bg-[var(--theme-surface-hover)] border-[var(--theme-border)] text-[var(--theme-text)] hover:bg-[var(--theme-surface-active)]'}"
+                      ? 'bg-[var(--theme-primary)] border-[var(--theme-primary)] text-white font-semibold ring-2 ring-[var(--theme-primary)] ring-offset-1 ring-offset-[var(--theme-bg)] scale-105'
+                      : 'bg-[var(--theme-surface-hover)] border-[var(--theme-border)] text-[var(--theme-text)] font-medium hover:bg-[var(--theme-surface-active)]'}"
                   onclick={() => { selectedTone = selectedTone === tone ? '' : tone; }}
                 >
                   {tone}
