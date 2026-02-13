@@ -252,7 +252,7 @@
   });
 </script>
 
-<div class="flex h-full">
+<div class="flex h-full overflow-hidden">
   <!-- Sidebar: overlay on mobile, persistent on lg -->
   {#if sidebarOpen}
     <button
