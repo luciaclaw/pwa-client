@@ -70,6 +70,7 @@
           role: 'assistant',
           content: payload.content,
           toolCalls: payload.toolCalls,
+          reasoningContent: payload.reasoningContent,
           timestamp: msg.timestamp,
         });
         waitingForResponse = false;
@@ -89,6 +90,7 @@
           role: 'assistant',
           content: payload.content,
           toolCalls: payload.toolCalls,
+          reasoningContent: payload.reasoningContent,
           timestamp: msg.timestamp,
         });
         streamingContent = '';

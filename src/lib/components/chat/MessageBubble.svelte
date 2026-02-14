@@ -55,6 +55,17 @@
       </div>
     {/if}
 
+    {#if message.reasoningContent}
+      <details class="mb-2 text-sm opacity-70">
+        <summary class="cursor-pointer select-none font-medium">
+          Reasoning steps
+        </summary>
+        <div class="mt-1 whitespace-pre-wrap break-words border-l-2 border-current/20 pl-3 text-xs">
+          {message.reasoningContent}
+        </div>
+      </details>
+    {/if}
+
     <div class="whitespace-pre-wrap break-words">
       {message.content}{#if streaming}<span class="inline-block w-0.5 h-4 bg-current ml-0.5 animate-[blink_0.7s_infinite]"></span>{/if}
     </div>
