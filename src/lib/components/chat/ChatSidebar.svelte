@@ -64,7 +64,7 @@
             <span>{formatTime(conv.updatedAt)}</span>
           </span>
           <button
-            class="absolute top-2 right-2 p-1 rounded opacity-0 group-hover:opacity-100 text-[var(--theme-text-muted)] hover:bg-[var(--theme-error)] hover:text-white transition-all"
+            class="absolute top-2 right-2 p-1 rounded text-[var(--theme-text-muted)] hover:bg-[var(--theme-error)] hover:text-white transition-all"
             onclick={(e) => { e.stopPropagation(); ondelete(conv.id); }}
             title="Delete"
           >
