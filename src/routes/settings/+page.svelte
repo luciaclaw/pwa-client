@@ -9,9 +9,12 @@
   import {
     preferences, preferencesLoaded, requestPreferences, setPreference, initPreferencesHandlers,
   } from '$lib/stores/preferences.js';
+  import {
+    usageSummary, usageLoading, usagePeriod, requestUsage, setUsageLimits, initUsageHandlers,
+  } from '$lib/stores/usage.js';
   import type { CredentialInfo } from '@luciaclaw/protocol';
   import { onMount } from 'svelte';
-  import { Bell, Wifi, WifiOff, User, Upload, X, Server } from '@lucide/svelte';
+  import { Bell, Wifi, WifiOff, User, Upload, X, Server, Coins } from '@lucide/svelte';
   import Section from '$lib/components/Section.svelte';
   import Button from '$lib/components/Button.svelte';
   import Input from '$lib/components/Input.svelte';
@@ -134,6 +137,26 @@
     setTimeout(() => { githubOAuthSaving = false; }, 800);
   }
 
+  // Usage limits
+  let dailyLimit = $state('');
+  let monthlyLimit = $state('');
+  let limitsSaving = $state(false);
+
+  $effect(() => {
+    if ($usageSummary?.limits) {
+      dailyLimit = $usageSummary.limits.daily != null ? String($usageSummary.limits.daily) : '';
+      monthlyLimit = $usageSummary.limits.monthly != null ? String($usageSummary.limits.monthly) : '';
+    }
+  });
+
+  function saveUsageLimits() {
+    limitsSaving = true;
+    const daily = dailyLimit.trim() ? Number(dailyLimit) : null;
+    const monthly = monthlyLimit.trim() ? Number(monthlyLimit) : null;
+    setUsageLimits(daily, monthly);
+    setTimeout(() => { limitsSaving = false; }, 800);
+  }
+
   let apiKeyInputs: Record<string, string> = $state({});
 
   let credentialsByService = $derived(
@@ -144,10 +167,10 @@
     }, {})
   );
 
-  onMount(() => { initCredentialHandlers(); initPreferencesHandlers(); });
+  onMount(() => { initCredentialHandlers(); initPreferencesHandlers(); initUsageHandlers(); });
 
   $effect(() => {
-    if ($isConnected) { requestIntegrations(); requestCredentials(); requestPreferences(); }
+    if ($isConnected) { requestIntegrations(); requestCredentials(); requestPreferences(); requestUsage($usagePeriod); }
   });
 
   async function handleConnect() {
@@ -236,6 +259,93 @@
         {/if}
       </div>
     </div>
+  </Section>
+
+  <Section title="Usage & Credits">
+    {#if !$isConnected}
+      <p class="text-sm text-[var(--theme-text-muted)]">Connect to the Agent CVM to view usage data.</p>
+    {:else if $usageLoading && !$usageSummary}
+      <p class="text-sm text-[var(--theme-text-muted)]">Loading usage data...</p>
+    {:else if $usageSummary}
+      <div class="space-y-4">
+        <!-- Period toggle -->
+        <div class="flex flex-col gap-1">
+          <span class="text-xs font-semibold uppercase tracking-wider text-[var(--theme-text-muted)]">Period</span>
+          <div class="flex gap-1.5">
+            {#each [['day', 'Today'], ['month', 'This Month']] as [value, label]}
+              <button
+                class="px-3 py-1.5 text-xs rounded-full border transition-all
+                  {$usagePeriod === value
+                    ? 'bg-[var(--theme-primary)] border-[var(--theme-primary)] text-white font-semibold ring-2 ring-[var(--theme-primary)] ring-offset-1 ring-offset-[var(--theme-bg)] scale-105'
+                    : 'bg-[var(--theme-surface-hover)] border-[var(--theme-border)] text-[var(--theme-text)] font-medium hover:bg-[var(--theme-surface-active)]'}"
+                onclick={() => { usagePeriod.set(value as 'day' | 'month'); requestUsage(value as 'day' | 'month'); }}
+              >
+                {label}
+              </button>
+            {/each}
+          </div>
+        </div>
+
+        <!-- Summary -->
+        <div class="flex items-baseline gap-3">
+          <div class="flex items-center gap-1.5">
+            <Coins size={16} class="text-[var(--theme-primary)]" />
+            <span class="text-lg font-bold text-[var(--theme-text)]">{$usageSummary.totalCredits.toFixed(1)}</span>
+            <span class="text-xs text-[var(--theme-text-muted)]">credits</span>
+          </div>
+          <span class="text-xs text-[var(--theme-text-muted)]">
+            {($usageSummary.totalPromptTokens + $usageSummary.totalCompletionTokens).toLocaleString()} tokens
+          </span>
+          <Badge variant={$usageSummary.limitExceeded ? 'error' : 'success'}>
+            {$usageSummary.limitExceeded ? 'Limit exceeded' : 'OK'}
+          </Badge>
+        </div>
+
+        <!-- Per-model breakdown -->
+        {#if $usageSummary.byModel.length > 0}
+          <div class="flex flex-col gap-1">
+            <span class="text-xs font-semibold uppercase tracking-wider text-[var(--theme-text-muted)]">By model</span>
+            <div class="rounded-lg border border-[var(--theme-border)] overflow-hidden">
+              <table class="w-full text-xs">
+                <thead>
+                  <tr class="bg-[var(--theme-surface-hover)] text-[var(--theme-text-muted)]">
+                    <th class="text-left px-2 py-1.5 font-semibold">Model</th>
+                    <th class="text-right px-2 py-1.5 font-semibold">Calls</th>
+                    <th class="text-right px-2 py-1.5 font-semibold">Tokens</th>
+                    <th class="text-right px-2 py-1.5 font-semibold">Credits</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {#each $usageSummary.byModel as model}
+                    <tr class="border-t border-[var(--theme-border)]">
+                      <td class="px-2 py-1.5 text-[var(--theme-text)]">
+                        <span class="font-medium">{model.model}</span>
+                        <span class="text-[var(--theme-text-muted)] ml-1">({model.role})</span>
+                      </td>
+                      <td class="text-right px-2 py-1.5 text-[var(--theme-text-muted)]">{model.callCount}</td>
+                      <td class="text-right px-2 py-1.5 text-[var(--theme-text-muted)]">{(model.promptTokens + model.completionTokens).toLocaleString()}</td>
+                      <td class="text-right px-2 py-1.5 font-medium text-[var(--theme-text)]">{model.credits.toFixed(2)}</td>
+                    </tr>
+                  {/each}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        {/if}
+
+        <!-- Limits -->
+        <div class="flex flex-col gap-2">
+          <span class="text-xs font-semibold uppercase tracking-wider text-[var(--theme-text-muted)]">Spending limits</span>
+          <div class="flex gap-2">
+            <Input label="Daily limit" type="number" bind:value={dailyLimit} placeholder="No limit" />
+            <Input label="Monthly limit" type="number" bind:value={monthlyLimit} placeholder="No limit" />
+          </div>
+          <Button variant="primary" size="sm" loading={limitsSaving} onclick={saveUsageLimits}>
+            {limitsSaving ? 'Saved!' : 'Save limits'}
+          </Button>
+        </div>
+      </div>
+    {/if}
   </Section>
 
   <Section title="CVM Configuration">
