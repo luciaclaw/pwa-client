@@ -12,9 +12,12 @@
   import {
     usageSummary, usageLoading, usagePeriod, requestUsage, setUsageLimits, initUsageHandlers,
   } from '$lib/stores/usage.js';
+  import {
+    exportData, importResult, requestMemoryExport, requestMemoryImport, initMemoryHandlers,
+  } from '$lib/stores/memories.js';
   import type { CredentialInfo } from '@luciaclaw/protocol';
   import { onMount } from 'svelte';
-  import { Bell, Wifi, WifiOff, User, Upload, X, Server, Coins } from '@lucide/svelte';
+  import { Bell, Wifi, WifiOff, User, Upload, X, Server, Coins, Download, FileUp } from '@lucide/svelte';
   import Section from '$lib/components/Section.svelte';
   import Button from '$lib/components/Button.svelte';
   import Input from '$lib/components/Input.svelte';
@@ -157,6 +160,70 @@
     setTimeout(() => { limitsSaving = false; }, 800);
   }
 
+  // Data management
+  let exportLoading = $state(false);
+  let exportIncludePrefs = $state(true);
+  let importFileInput = $state<HTMLInputElement>();
+  let importLoading = $state(false);
+  let importError = $state('');
+
+  $effect(() => {
+    const data = $exportData;
+    if (data && exportLoading) {
+      exportLoading = false;
+      const json = JSON.stringify(data, null, 2);
+      const blob = new Blob([json], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      const date = new Date().toISOString().slice(0, 10);
+      a.download = `lucia-memory-${date}.json`;
+      a.click();
+      URL.revokeObjectURL(url);
+    }
+  });
+
+  $effect(() => {
+    const result = $importResult;
+    if (result && importLoading) {
+      importLoading = false;
+    }
+  });
+
+  function handleExport() {
+    exportLoading = true;
+    requestMemoryExport(exportIncludePrefs);
+  }
+
+  function handleImportFile(e: Event) {
+    const input = e.target as HTMLInputElement;
+    const file = input.files?.[0];
+    if (!file) return;
+    importError = '';
+    importLoading = true;
+
+    const reader = new FileReader();
+    reader.onload = () => {
+      try {
+        const parsed = JSON.parse(reader.result as string);
+        if (!parsed.memories || !Array.isArray(parsed.memories)) {
+          importError = 'Invalid file: missing "memories" array';
+          importLoading = false;
+          return;
+        }
+        requestMemoryImport(
+          { memories: parsed.memories, preferences: parsed.preferences },
+          'merge',
+        );
+      } catch {
+        importError = 'Invalid JSON file';
+        importLoading = false;
+      }
+    };
+    reader.readAsText(file);
+    input.value = '';
+  }
+
   let apiKeyInputs: Record<string, string> = $state({});
 
   let credentialsByService = $derived(
@@ -167,7 +234,7 @@
     }, {})
   );
 
-  onMount(() => { initCredentialHandlers(); initPreferencesHandlers(); initUsageHandlers(); });
+  onMount(() => { initCredentialHandlers(); initPreferencesHandlers(); initUsageHandlers(); initMemoryHandlers(); });
 
   $effect(() => {
     if ($isConnected) { requestIntegrations(); requestCredentials(); requestPreferences(); requestUsage($usagePeriod); }
@@ -551,6 +618,63 @@
         <Button variant="primary" size="sm" loading={personalitySaving} onclick={savePersonality}>
           {personalitySaving ? 'Saved!' : 'Save personality'}
         </Button>
+      </div>
+    {/if}
+  </Section>
+
+  <Section title="Data Management">
+    {#if !$isConnected}
+      <p class="text-sm text-[var(--theme-text-muted)]">Connect to the Agent CVM to manage your data.</p>
+    {:else}
+      <div class="space-y-4">
+        <p class="text-xs text-[var(--theme-text-muted)]">
+          Export your memories and preferences as a JSON file, or import a previously exported backup.
+        </p>
+
+        <!-- Export -->
+        <div class="space-y-2">
+          <span class="text-xs font-semibold uppercase tracking-wider text-[var(--theme-text)]">Export</span>
+          <label class="flex items-center gap-2 text-sm text-[var(--theme-text)]">
+            <input type="checkbox" bind:checked={exportIncludePrefs} class="rounded" />
+            Include preferences
+          </label>
+          <Button variant="primary" size="sm" loading={exportLoading} onclick={handleExport}>
+            <Download size={14} /> {exportLoading ? 'Exporting...' : 'Export memories'}
+          </Button>
+        </div>
+
+        <hr class="border-[var(--theme-border)]" />
+
+        <!-- Import -->
+        <div class="space-y-2">
+          <span class="text-xs font-semibold uppercase tracking-wider text-[var(--theme-text)]">Import</span>
+          <p class="text-[0.7rem] text-[var(--theme-text-muted)]">
+            Upload a JSON export file. Duplicate memories will be skipped automatically.
+          </p>
+          <div class="flex items-center gap-2">
+            <Button variant="secondary" size="sm" loading={importLoading} onclick={() => importFileInput?.click()}>
+              <FileUp size={14} /> {importLoading ? 'Importing...' : 'Choose file'}
+            </Button>
+            <input
+              bind:this={importFileInput}
+              type="file"
+              accept=".json"
+              class="hidden"
+              onchange={handleImportFile}
+            />
+          </div>
+          {#if importError}
+            <p class="text-xs text-[var(--theme-error)]">{importError}</p>
+          {/if}
+          {#if $importResult}
+            <div class="flex items-center gap-2 text-xs">
+              <Badge variant="success">{$importResult.imported} imported</Badge>
+              {#if $importResult.skipped > 0}
+                <Badge variant="neutral">{$importResult.skipped} skipped</Badge>
+              {/if}
+            </div>
+          {/if}
+        </div>
       </div>
     {/if}
   </Section>
