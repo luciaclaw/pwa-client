@@ -20,7 +20,14 @@ export const providers = derived(availableModels, ($models) =>
 );
 
 export function setModels(models: ModelInfo[], currentModel: string): void {
-  availableModels.set(models);
+  // Deduplicate by id to prevent Svelte keyed-each errors
+  const seen = new Set<string>();
+  const unique = models.filter((m) => {
+    if (seen.has(m.id)) return false;
+    seen.add(m.id);
+    return true;
+  });
+  availableModels.set(unique);
   if (currentModel) {
     selectedModelId.set(currentModel);
   } else if (models.length > 0) {
